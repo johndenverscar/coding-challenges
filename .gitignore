@@ -97,3 +97,5 @@ tmp/
 build/
 dist/
 out/
+
+.env

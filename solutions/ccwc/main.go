@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"unicode/utf8"
 )
@@ -18,17 +19,25 @@ func main() {
 	flag.Parse()
 
 	args := flag.Args()
+
+	var data []byte
+	var err error
+	var filename string
+
 	if len(args) == 0 {
-		fmt.Println("Usage: ccwc [options] <filename>")
-		os.Exit(1)
-	}
-
-	filename := args[0]
-
-	data, err := os.ReadFile(filename)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error reading file: %v\n", err)
-		os.Exit(1)
+		data, err = io.ReadAll(os.Stdin)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error reading stdin: %v\n", err)
+			os.Exit(1)
+		}
+		filename = ""
+	} else {
+		filename = args[0]
+		data, err = os.ReadFile(filename)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error reading file: %v\n", err)
+			os.Exit(1)
+		}
 	}
 
 	noFlags := !*countBytes && !*countLines && !*countWords && !*countChars

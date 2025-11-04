@@ -19,9 +19,11 @@ program
     .requiredOption('-r, --repo <repo>', 'Repository name')
     .option('-b, --branch <branch>', 'Branch to scan', 'main')
     .option('-t, --token <token>', 'GitHub token (or use GITHUB_TOKEN env)')
+    .option('-c, --concurrency <number>', 'Number of concurrent file requests', '10')
     .action(async (options) => {
         try {
-            const scanner = new SecretScanner(options.token);
+            const concurrency = parseInt(options.concurrency, 10);
+            const scanner = new SecretScanner(options.token, [], concurrency);
 
             console.log(`Starting scan of ${options.owner}/${options.repo}/${options.branch}...`);
 

@@ -5,14 +5,34 @@ import { ScanResult, ScanOptions } from "./types";
 export class SecretScanner {
     private githubClient: GitHubClient;
     private excludePatterns: RegExp[];
+    private concurrencyLimit: number;
 
-    constructor(token?: string, excludePatterns: RegExp[] = []) {
+    constructor(token?: string, excludePatterns: RegExp[] = [], concurrencyLimit: number = 10) {
         this.githubClient = new GitHubClient(token);
         this.excludePatterns = excludePatterns;
+        this.concurrencyLimit = concurrencyLimit;
     }
 
     setExcludePatterns(patterns: RegExp[]) {
         this.excludePatterns = patterns;
+    }
+
+    private chunkArray<T>(array: T[], size: number): T[][] {
+        const chunks: T[][] = [];
+        for (let i = 0; i < array.length; i += size) {
+            chunks.push(array.slice(i, i + size));
+        }
+        return chunks;
+    }
+
+    private async scanFileWithRetry(owner: string, repo: string, filePath: string): Promise<ScanResult[]> {
+        try {
+            const content = await this.githubClient.getFileContent(owner, repo, filePath);
+            return this.scanContent(content, filePath);
+        } catch (error) {
+            console.warn(`Failed to fetch or scan file ${filePath}: ${(error as Error).message}`);
+            return [];
+        }
     }
 
     private shouldExclude(filePath: string): boolean {
@@ -43,17 +63,19 @@ export class SecretScanner {
             item.type === 'blob' && !this.shouldExclude(item.path! || '')
         );
 
-        console.log(`Scanning ${files.length} files for secrets...`);
-        for (const file of files) {
-            if (!file.path) continue;
+        console.log(`Scanning ${files.length} files for secrets (${this.concurrencyLimit} concurrent requests)...`);
 
-            try {
-                const content = await this.githubClient.getFileContent(owner, repo, file.path);
-                const fileResults = this.scanContent(content, file.path);
-                results.push(...fileResults);
-            } catch (error) {
-                console.warn(`Failed to fetch or scan file ${file.path}: ${(error as Error).message}`);
-            }
+        // Process files in parallel batches
+        const filePaths = files
+            .map((f: { path?: string }) => f.path)
+            .filter((path: string | undefined): path is string => !!path);
+        const chunks: string[][] = this.chunkArray(filePaths, this.concurrencyLimit);
+
+        for (const chunk of chunks) {
+            const chunkResults = await Promise.all(
+                chunk.map(filePath => this.scanFileWithRetry(owner, repo, filePath))
+            );
+            results.push(...chunkResults.flat());
         }
 
         return results;

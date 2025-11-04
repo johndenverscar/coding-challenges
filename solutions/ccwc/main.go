@@ -31,6 +31,17 @@ func main() {
 		os.Exit(1)
 	}
 
+	noFlags := !*countBytes && !*countLines && !*countWords && !*countChars
+
+	if noFlags {
+		byteCount := len(data)
+		lineCount := countLinesInData(data)
+		wordCount := countWordsInData(data)
+		charCount := utf8.RuneCount(data)
+		fmt.Printf("%d %d %d %d %s\n", lineCount, wordCount, byteCount, charCount, filename)
+		return
+	}
+
 	if *countBytes {
 		byteCount := len(data)
 		fmt.Printf("%d %s\n", byteCount, filename)

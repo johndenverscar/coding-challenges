@@ -1,6 +1,8 @@
 package main
 
 import (
+	"bufio"
+	"bytes"
 	"flag"
 	"fmt"
 	"os"
@@ -9,6 +11,7 @@ import (
 func main() {
 	countBytes := flag.Bool("c", false, "Count bytes")
 	countLines := flag.Bool("l", false, "Count lines")
+	countWords := flag.Bool("w", false, "Count words")
 
 	flag.Parse()
 
@@ -35,6 +38,11 @@ func main() {
 		lineCount := countLinesInData(data)
 		fmt.Printf("%d %s\n", lineCount, filename)
 	}
+
+	if *countWords {
+		wordCount := countWordsInData(data)
+		fmt.Printf("%d %s\n", wordCount, filename)
+	}
 }
 
 func countLinesInData(data []byte) int {
@@ -48,5 +56,17 @@ func countLinesInData(data []byte) int {
 	if len(data) > 0 && data[len(data)-1] != '\n' {
 		count++
 	}
+	return count
+}
+
+func countWordsInData(data []byte) int {
+	scanner := bufio.NewScanner(bytes.NewReader(data))
+	scanner.Split(bufio.ScanWords)
+
+	count := 0
+	for scanner.Scan() {
+		count++
+	}
+
 	return count
 }

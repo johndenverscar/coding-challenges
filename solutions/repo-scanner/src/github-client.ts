@@ -9,6 +9,15 @@ export class GitHubClient {
         });
     }
 
+    private isHttpError(error: unknown): error is { status: number } {
+        return (
+            typeof error === 'object' &&
+            error !== null &&
+            'status' in error &&
+            typeof (error as { status: unknown }).status === 'number'
+        );
+    }
+
     async getRepoTree(owner: string, repo: string, branch = 'main') {
         try {
             // First, get the branch to get the commit SHA
@@ -34,8 +43,8 @@ export class GitHubClient {
             }
 
             return data.tree || [];
-        } catch (error: any) {
-            if (error.status === 404) {
+        } catch (error: unknown) {
+            if (this.isHttpError(error) && error.status === 404) {
                 throw new Error(`Repository ${owner}/${repo} not found or branch '${branch}' doesn't exist. Check the repo name and branch.`);
             }
             throw error;
@@ -54,8 +63,8 @@ export class GitHubClient {
                 return Buffer.from(data.content, 'base64').toString('utf-8');
             }
             throw new Error('Not a file');
-        } catch (error: any) {
-            if (error.status === 404) {
+        } catch (error: unknown) {
+            if (this.isHttpError(error) && error.status === 404) {
                 throw new Error(`File ${path} not found`);
             }
             throw error;

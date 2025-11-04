@@ -60,7 +60,7 @@ export class SecretScanner {
         const tree = await this.githubClient.getRepoTree(owner, repo, branch);
 
         const files = tree.filter((item: { path?: string, type?: string }) =>
-            item.type === 'blob' && !this.shouldExclude(item.path! || '')
+            item.type === 'blob' && item.path && !this.shouldExclude(item.path)
         );
 
         console.log(`Scanning ${files.length} files for secrets (${this.concurrencyLimit} concurrent requests)...`);

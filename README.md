@@ -1,5 +1,5 @@
-# Coding Challenges
+# Coding Lab
 
-This is going to be my repo for solutions to John Crickett's coding challenges
+Space for some coding challenges and toy projects to spend some curiosity
 
 https://codingchallenges.fyi/challenges/intro

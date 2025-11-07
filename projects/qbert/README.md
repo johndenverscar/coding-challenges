@@ -29,6 +29,31 @@ qbert/
 └── go.sum                   # Go module checksums
 ```
 
+## Quick Start with Makefile
+
+```bash
+# See all available commands
+make help
+
+# Run unit tests
+make test-unit
+
+# Run integration tests (requires qbert deployed to cluster)
+make test-integration
+
+# Build Docker image and deploy to Colima
+make deploy
+
+# Check deployment status
+make status
+
+# View logs
+make logs
+
+# Redeploy after code changes
+make redeploy
+```
+
 ## Running Locally
 
 ### Option 1: Run directly with Go
@@ -47,55 +72,75 @@ The server will start on port 8080 and use your local `~/.kube/config` for authe
 
 ```bash
 # Run all tests
-go test ./...
+make test
 
-# Run with verbose output
-go test -v ./...
+# Run unit tests only
+make test-unit
 
-# Run with coverage
-go test -cover ./...
+# Run integration tests (requires cluster and deployed qbert)
+make test-integration
 
-# Run specific package tests
-go test ./pkg/k8s
+# Run with coverage report
+make coverage
 ```
 
 ## Building and Deploying to Kubernetes
 
-### 1. Build Docker Image
+### Using Colima (Recommended for macOS)
 
 ```bash
+# Start Colima with Kubernetes
+colima start --kubernetes --cpu 4 --memory 8
+
+# Set kubectl context
+kubectl config use-context colima
+
+# Build and deploy using Makefile
+make deploy
+
+# Or manually:
 docker build -t qbert:latest .
+kubectl apply -f deploy/
+kubectl wait --for=condition=available deployment/qbert --timeout=60s
 ```
 
-### 2. Deploy to Kubernetes
+### Using KIND
 
 ```bash
-# Apply all manifests (ServiceAccount, RBAC, Deployment, Service)
-kubectl apply -f deploy/deployment.yaml
+# Create KIND cluster
+kind create cluster --name qbert-test
 
-# Verify deployment
+# Build and load image
+docker build -t qbert:latest .
+kind load docker-image qbert:latest --name qbert-test
+
+# Deploy
+kubectl apply -f deploy/
+kubectl wait --for=condition=available deployment/qbert --timeout=60s
+```
+
+### Verify Deployment
+
+```bash
+# Check pod status
 kubectl get pods -l app=qbert
+
+# Check service
 kubectl get svc qbert
+
+# View logs
+kubectl logs -l app=qbert -f
 ```
 
-### 3. Check Logs
+### Update After Code Changes
 
 ```bash
-# View application logs
-kubectl logs -l app=qbert
+# Using Makefile
+make redeploy
 
-# Follow logs in real-time
-kubectl logs -f -l app=qbert
-```
-
-### 4. Update After Code Changes
-
-```bash
-# Rebuild and restart
+# Or manually
 docker build -t qbert:latest .
 kubectl rollout restart deployment qbert
-
-# Watch rollout status
 kubectl rollout status deployment qbert
 ```
 
@@ -247,6 +292,68 @@ These permissions allow qbert to:
 
 The RBAC configuration is included in [deploy/deployment.yaml](deploy/deployment.yaml) and is automatically applied when you deploy the service.
 
+## Testing
+
+### Unit Tests
+
+Unit tests use fake Kubernetes clientsets and don't require a running cluster:
+
+```bash
+# Run all unit tests
+make test-unit
+
+# Run with coverage
+make coverage
+
+# Run specific package
+go test -v ./pkg/k8s/
+go test -v ./pkg/api/
+```
+
+### Integration Tests
+
+Integration tests run against a real Kubernetes cluster and test the full HTTP API:
+
+**Prerequisites:**
+- qbert deployed to cluster
+- Cluster accessible via kubectl
+
+**Test Structure:**
+- `HealthEndpointTestSuite` - Tests the `/health` endpoint
+- `GetReplicasTestSuite` - Tests `GET /deployments/{namespace}/{name}/replicas`
+- `PutReplicasTestSuite` - Tests `PUT /deployments/{namespace}/{name}/replicas`
+
+Each test suite:
+1. Creates a test namespace (`integration-test`)
+2. Deploys test workloads (nginx)
+3. Runs HTTP tests against qbert API
+4. Cleans up resources
+
+**Running Integration Tests:**
+
+```bash
+# Using Makefile (recommended)
+make test-integration
+
+# Or directly with go test
+go test -v ./test/
+
+# Run specific test suite
+go test -v ./test/ -run TestGetReplicasTestSuite
+go test -v ./test/ -run TestPutReplicasTestSuite
+
+# Run specific test
+go test -v ./test/ -run TestGetReplicasTestSuite/TestGetReplicas_Success
+```
+
+**What the tests verify:**
+- ✅ Health endpoint returns 200 OK
+- ✅ GET retrieves correct replica counts
+- ✅ GET returns 404 for non-existent deployments
+- ✅ PUT successfully scales deployments up/down
+- ✅ PUT validates replica counts (0 is allowed, negative is rejected)
+- ✅ Changes are applied to actual Kubernetes deployments
+
 ## Accessing the Service
 
 ### Local Development (NodePort)
@@ -263,3 +370,59 @@ curl -X PUT -H "Content-Type: application/json" \
   -d '{"replicas": 3}' \
   http://localhost:30080/deployments/default/qbert/replicas
 ```
+
+## Development Tools
+
+### Makefile Targets
+
+All common development tasks are automated via the Makefile:
+
+| Target | Description |
+|--------|-------------|
+| `make help` | Display all available targets |
+| `make build` | Build the Go binary |
+| `make run` | Build and run locally |
+| `make test` | Run all tests (unit + integration) |
+| `make test-unit` | Run unit tests only |
+| `make test-integration` | Run integration tests |
+| `make docker-build` | Build Docker image |
+| `make deploy` | Build and deploy to Kubernetes |
+| `make redeploy` | Rebuild and restart deployment |
+| `make status` | Check deployment status |
+| `make logs` | View application logs |
+| `make clean` | Remove build artifacts |
+| `make clean-deploy` | Delete Kubernetes resources |
+| `make fmt` | Format Go code |
+| `make vet` | Run go vet |
+| `make lint` | Run golangci-lint |
+| `make deps` | Download and tidy dependencies |
+| `make check` | Run fmt, vet, and unit tests |
+| `make coverage` | Generate coverage report |
+
+## Project Status
+
+### Level 1 - Basic GET API ✅ Complete
+- [x] HTTP GET endpoint for replica count
+- [x] Kubernetes client wrapper
+- [x] Unit tests (happy + unhappy paths)
+- [x] Dockerfile with multi-stage build
+- [x] Kubernetes manifests (Deployment, Service, RBAC)
+- [x] README with deployment instructions
+
+### Level 2 - Write Operations & Integration Tests ✅ Complete
+- [x] HTTP PUT endpoint for setting replicas
+- [x] Extended Kubernetes client with write operations
+- [x] Unit tests for PUT operations
+- [x] Integration tests against real cluster
+- [x] Test automation with testify/suite
+- [x] Automatic test namespace creation/cleanup
+- [x] Updated RBAC with write permissions
+- [x] Makefile for development automation
+- [x] Comprehensive documentation
+
+### Next Steps (Level 3+)
+See `levels/level-3.md` for advanced features like:
+- Metrics and observability
+- Rate limiting
+- Authentication/Authorization
+- Multi-cluster support

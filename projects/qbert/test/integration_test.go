@@ -50,7 +50,7 @@ func (suite *HealthEndpointTestSuite) TestHealthEndpoint() {
 	defer res.Body.Close()
 	body, err := io.ReadAll(res.Body)
 	require.NoError(suite.T(), err)
-	require.Equal(suite.T(), "OK", string(body))
+	require.Equal(suite.T(), "ok", string(body))
 }
 
 func TestHealthEndpointTestSuite(t *testing.T) {
